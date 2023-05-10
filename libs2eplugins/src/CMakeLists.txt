@@ -23,8 +23,6 @@ PROTOBUF_GENERATE_CPP(PROTO_SRCS PROTO_HDRS ${CMAKE_CURRENT_SOURCE_DIR}/s2e/Plug
 add_library(
     s2eplugins
 
-    s2e/Plugins/Chef/InterpreterMonitor.cpp
-
     # Core plugins
     s2e/Plugins/Core/BaseInstructions.cpp
     s2e/Plugins/Core/HostFiles.cpp
@@ -149,6 +147,10 @@ add_library(
     s2e/Plugins/Lua/LuaFunctionInstrumentationState.cpp
     s2e/Plugins/Lua/LuaExpression.cpp
     s2e/Plugins/Lua/LuaCoreEvents.cpp
+
+    # Chef
+    s2e/Plugins/Chef/InterpreterMonitor.cpp
+    s2e/Plugins/Chef/HighLevelUtilities.cpp
 
     ${PROTO_SRCS} ${PROTO_HDRS}
 )
