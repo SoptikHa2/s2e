@@ -23,6 +23,7 @@ PROTOBUF_GENERATE_CPP(PROTO_SRCS PROTO_HDRS ${CMAKE_CURRENT_SOURCE_DIR}/s2e/Plug
 add_library(
     s2eplugins
 
+        
     # Core plugins
     s2e/Plugins/Core/BaseInstructions.cpp
     s2e/Plugins/Core/HostFiles.cpp
@@ -151,8 +152,9 @@ add_library(
     # Chef
     s2e/Plugins/Chef/InterpreterMonitor.cpp
     s2e/Plugins/Chef/HighLevelUtilities.cpp
+        s2e/Plugins/Chef/ConcolicSession.cpp
 
-    ${PROTO_SRCS} ${PROTO_HDRS}
+        ${PROTO_SRCS} ${PROTO_HDRS}
 )
 
 
