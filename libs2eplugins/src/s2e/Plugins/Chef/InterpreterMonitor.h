@@ -29,23 +29,30 @@
 //#include <s2e/Plugins/Core/BaseInstructions.h>
 #include "../Core/BaseInstructions.h"
 
+#include "HighLevelUtilities.h"
 
 namespace s2e {
 namespace plugins {
 
 
 enum S2E_INTERPRETERMONITOR_COMMANDS {
-    // TODO: customize list of commands here
-    COMMAND_1
+    TraceUpdate
 };
 
 struct S2E_INTERPRETERMONITOR_COMMAND {
-    S2E_INTERPRETERMONITOR_COMMANDS Command;
-    union {
-        // Command parameters go here
-        uint64_t param;
-    };
-};
+    // There is just one command - TraceUpdate.
+    // In order to not break compatibility with
+    // existing Chef code, this has to be left out.
+    //S2E_INTERPRETERMONITOR_COMMANDS Command;
+    //union {
+    uint32_t op_code;
+    uint32_t frame_count;
+    uint32_t frames[2];
+    uint32_t line;
+    uint8_t function[61];
+    uint8_t filename[61];
+    //};
+} __attribute((packed));
 
 
 
@@ -53,19 +60,54 @@ class InterpreterMonitor : public Plugin, public IPluginInvoker {
 
     S2E_PLUGIN
 public:
-    InterpreterMonitor(S2E *s2e) : Plugin(s2e) {
-    }
+    InterpreterMonitor(S2E *s2e);
 
     void initialize();
+
+    void startTrace(S2EExecutionState * state);
+    void stopTrace(S2EExecutionState * state);
+
+    HighLevelTreeNode *getHLTreeNode(S2EExecutionState *state) const;
+    void dumpHighLevelTree(std::ostream &os);
+    void dumpHighLevelCFG(std::ostream &os);
+
+    HighLevelCFG &cfg() {
+        return cfg_;
+    }
+
+    bool active() const {
+        return root_node_ != NULL;
+    }
 
 private:
     // Allow the guest to communicate with this plugin using s2e_invoke_plugin
     virtual void handleOpcodeInvocation(S2EExecutionState *state, uint64_t guestDataPtr, uint64_t guestDataSize);
 
-    virtual void onInstructionTranslation(ExecutionSignal * signal, S2EExecutionState * state, TranslationBlock * tb, uint64_t pc);
-    virtual void onInstructionExecution(S2EExecutionState * state, uint64_t pc);
-    virtual void printFinalInstructionCount(S2EExecutionState * state);
+    sigc::signal<void, S2EExecutionState*, HighLevelTreeNode*> on_hlpc_update;
 
+private:
+    typedef std::vector<S2EExecutionState*> StateVector;
+    typedef std::map<S2EExecutionState*, HighLevelTreeNode*> StateNodeMapping;
+
+    HighLevelCFG cfg_;
+
+    HighLevelTreeNode *root_node_;
+    HighLevelTreeNode *active_node_;
+    S2EExecutionState *active_state_;
+    StateNodeMapping state_mapping_;
+
+    // Required connections
+    sigc::connection on_state_fork_;
+    sigc::connection on_state_switch_;
+    sigc::connection on_state_kill_;
+
+    void doUpdateHLPC(S2EExecutionState *state, const HighLevelPC &hlpc,
+                      HighLevelOpcode opcode, std::string filename, std::string function, int line);
+
+    void onStateFork(S2EExecutionState *state, const StateVector &new_states,
+                     const std::vector<klee::ref<klee::Expr> > &new_conditions);
+    void onStateSwitch(S2EExecutionState *state, S2EExecutionState *new_state);
+    void onStateKill(S2EExecutionState *state);
 };
 
 } // namespace plugins
