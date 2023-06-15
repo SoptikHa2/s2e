@@ -79,7 +79,6 @@ public:
         return root_node_ != NULL;
     }
 
-private:
     // Allow the guest to communicate with this plugin using s2e_invoke_plugin
     virtual void handleOpcodeInvocation(S2EExecutionState *state, uint64_t guestDataPtr, uint64_t guestDataSize);
 
