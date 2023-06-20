@@ -28,6 +28,8 @@
 #include "../ExecutionTracers/MemoryTracer.h"
 #include "../ExecutionTracers/TranslationBlockTracer.h"
 
+#include "Utils.hpp"
+
 #include <s2e/ConfigFile.h>
 #include <s2e/S2E.h>
 #include <s2e/S2EExecutor.h>
@@ -96,12 +98,12 @@ ConcolicSession::ConcolicSession(S2E* s2e_)
           extra_details_(false),
           interp_monitor_(NULL),
           root_fork_point_(NULL),
-          active_fork_point_(NULL),
-          active_fork_index_(0),
           active_state_(NULL),
           tree_divergence_node_(NULL),
           cfg_divergence_node_(NULL),
           starting_fork_point_(NULL),
+          active_fork_point_(NULL),
+          active_fork_index_(0),
           start_time_stamp_(chrono_clock::now()),
           path_time_stamp_(chrono_clock::now()),
           next_dump_stamp_(chrono_clock::now()),
