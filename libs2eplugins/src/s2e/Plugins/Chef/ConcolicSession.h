@@ -37,6 +37,7 @@
 #include <vector>
 #include <map>
 #include <fstream>
+#include <optional>
 
 
 namespace s2e {
@@ -167,6 +168,7 @@ private:
     // Callback connections
     sigc::connection on_interpreter_trace_;
     sigc::connection on_state_fork_;
+    sigc::connection on_state_switch_;
     sigc::connection on_state_kill_;
     sigc::connection on_timer_;
 
@@ -190,18 +192,18 @@ private:
     // Time tracking
     using chrono_clock = std::chrono::system_clock;
     using chrono_time_point = std::chrono::time_point<chrono_clock>;
-    using chrono_duration = std::chrono::duration<chrono_clock>;
+    using chrono_duration = std::chrono::duration<double>;
     chrono_time_point start_time_stamp_;
     chrono_time_point path_time_stamp_;
-    chrono_time_point next_dump_stamp_;
-
+    std::optional<chrono_time_point> path_deadline_;
+    std::optional<chrono_time_point> next_dump_stamp_;
 
     // Debugging
     TranslationBlockTracer *tb_tracer_;
 
     void terminateSession(S2EExecutionState *state);
     void dumpTestCase(S2EExecutionState *state,
-                      chrono_time_point time_stamp, chrono_time_point total_delta,
+                      chrono_time_point time_stamp, chrono_duration total_delta,
                       llvm::raw_ostream &out);
 
     int startConcolicSession(S2EExecutionState *state, uint32_t max_time);

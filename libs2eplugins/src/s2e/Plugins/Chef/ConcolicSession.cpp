@@ -106,7 +106,8 @@ ConcolicSession::ConcolicSession(S2E* s2e_)
           active_fork_index_(0),
           start_time_stamp_(chrono_clock::now()),
           path_time_stamp_(chrono_clock::now()),
-          next_dump_stamp_(chrono_clock::now()),
+          path_deadline_({}),
+          next_dump_stamp_({}),
           tb_tracer_(NULL) {
 }
 
@@ -184,7 +185,7 @@ int ConcolicSession::startConcolicSession(S2EExecutionState *state,
     if (tree_dump_interval_ > 0) {
         next_dump_stamp_ = start_time_stamp_ + std::chrono::seconds(tree_dump_interval_);
     } else {
-        next_dump_stamp_ = chrono_time_point();
+        next_dump_stamp_ = {};
     }
 
     root_fork_point_ = new ForkPoint(NULL, -1, active_state_->pc,
@@ -232,8 +233,7 @@ int ConcolicSession::endConcolicSession(S2EExecutionState *state,
         }
     }
 
-    s2e()->getInfoStream(state) << "Processing test case for " << state->
-                                    << klee::concolics(state) << '\n';
+    s2e()->getInfoStream(state) << "Processing test case\n";
 
     if (interp_monitor_->cfg().changed()) {
         assert(trace_node->path_counter() == 1
@@ -281,15 +281,15 @@ int ConcolicSession::endConcolicSession(S2EExecutionState *state,
 
 void ConcolicSession::dumpTestCase(S2EExecutionState *state,
                                    chrono_time_point time_stamp,
-                                   chrono_time_point total_delta,
+                                   chrono_duration total_delta,
                                    llvm::raw_ostream &out) {
-    out << (time_stamp - start_time_stamp_).usec();
+    out << (time_stamp - start_time_stamp_).count();
     out << " " << hexval(starting_fork_point_->pc());
     out << " " << starting_fork_point_->hl_node()->instruction()->filename << ":" <<
         starting_fork_point_->hl_node()->instruction()->function << ":" << starting_fork_point_->hl_node()->instruction()->line;
 
     if (extra_details_) {
-        int min_dist, max_dist;
+        //int min_dist, max_dist;
         //computeMinMaxDistToUncovered(state, min_dist, max_dist);
 
         HighLevelTreeNode *starting_node = starting_fork_point_->hl_node();
@@ -314,14 +314,14 @@ void ConcolicSession::dumpTestCase(S2EExecutionState *state,
             out << " " << "-/-";
         }
 
-        out << " " << min_dist << "/" << max_dist;
+        //out << " " << min_dist << "/" << max_dist;
     }
 
-    klee::Assignment assignment = state->concolics;
+    klee::AssignmentPtr assignment = state->concolics;
 
     for (klee::Assignment::bindings_ty::iterator
-                 bit = assignment.bindings.begin(),
-                 bie = assignment.bindings.end(); bit != bie; ++bit) {
+                 bit = assignment->bindings.begin(),
+                 bie = assignment->bindings.end(); bit != bie; ++bit) {
         std::string assgn_value(bit->second.begin(), bit->second.end());
 
         out << " " << bit->first->getName() << "=>";
@@ -340,11 +340,11 @@ void ConcolicSession::terminateSession(S2EExecutionState *state) {
 
     dumpTraceGraphs();
 
-    if (!emptyPendingStates()) {
+    /*if (!emptyPendingStates()) {
         StateVector state_vector;
         copyAndClearPendingStates(state_vector);
 
-        s2e()->getMessagesStream(state) << "Terminating "
+        s2e()->getInfoStream(state) << "Terminating "
                                         << state_vector.size() << " pending states." << '\n';
 
         for (StateVector::iterator it = state_vector.begin(),
@@ -355,16 +355,15 @@ void ConcolicSession::terminateSession(S2EExecutionState *state) {
 #endif
             s2e()->getExecutor()->terminateState(*pending_state);
         }
-    }
+    }*/
 
-    s2e()->getMessagesStream(state) << "***** CONCOLIC SESSION - END *****" << '\n';
+    s2e()->getInfoStream(state) << "***** CONCOLIC SESSION - END *****" << '\n';
 
     active_state_ = NULL;
 
     on_timer_.disconnect();
     on_state_fork_.disconnect();
     on_state_kill_.disconnect();
-    on_state_switch_.disconnect();
     on_interpreter_trace_.disconnect();
 
     interp_monitor_->stopTrace(state);
@@ -411,7 +410,7 @@ void ConcolicSession::onStateFork(S2EExecutionState *state,
         pending_fork_points_[new_state].first = active_fork_point_;
         pending_fork_points_[new_state].second = (i + 1);
 
-        insertPendingState(new_state);
+        //insertPendingState(new_state);
     }
 }
 
@@ -432,41 +431,40 @@ void ConcolicSession::onStateKill(S2EExecutionState *state) {
 
 
 void ConcolicSession::onTimer() {
-    if (active_state_ == NULL) {
+    /*if (active_state_ == NULL) {
         return;
     }
 
     chrono_time_point time_stamp = chrono_clock::now();
     S2EExecutionState *state = active_state_;
 
-    if (path_deadline_ != sys::TimeValue::ZeroTime && time_stamp >= path_deadline_) {
-        s2e()->getMessagesStream(state) << "State time-out." << '\n';
+    if (path_deadline_ && time_stamp >= path_deadline_.value()) {
+        s2e()->getDebugStream(state) << "State time-out." << '\n';
         endConcolicSession(state, true);
         return;
     }
 
-    if (session_deadline_ == sys::TimeValue::ZeroTime
-        && next_dump_stamp_ == sys::TimeValue::ZeroTime)
+    if (!session_deadline_ && !next_dump_stamp_)
         return;
 
-    if (session_deadline_ != sys::TimeValue::ZeroTime && time_stamp >= session_deadline_) {
-        s2e()->getMessagesStream(state) << "Concolic session time-out."
+    if (session_deadline_ && time_stamp >= session_deadline_.value()) {
+        s2e()->getDebugStream(state) << "Concolic session time-out."
                                         << '\n';
         terminateSession(state);
         s2e()->getExecutor()->terminateState(*state);
         return;
     }
 
-    if (next_dump_stamp_ != sys::TimeValue::ZeroTime && time_stamp >= next_dump_stamp_) {
-        s2e()->getMessagesStream(state) << "Dumping execution tree." << '\n';
+    if (next_dump_stamp_ && time_stamp >= next_dump_stamp_.value()) {
+        s2e()->getDebugStream(state) << "Dumping execution tree." << '\n';
         dumpTraceGraphs();
         next_dump_stamp_ = time_stamp + sys::TimeValue((int64_t)tree_dump_interval_);
-    }
+    }*/
 }
 
 void ConcolicSession::dumpTraceGraphs() {
     std::ofstream tree_of;
-    std::string file_name = s2e()->getNextOutputFilename("interp_tree.dot");
+    std::string file_name = s2e()->getOutputFilename("interp_tree.dot");
     tree_of.open(file_name.c_str());
     assert(tree_of.good() && "Could not open interpreter tree dump");
 
@@ -474,14 +472,13 @@ void ConcolicSession::dumpTraceGraphs() {
     tree_of.close();
 
     std::ofstream cfg_of;
-    file_name = s2e()->getNextOutputFilename("interp_cfg.dot");
+    file_name = s2e()->getOutputFilename("interp_cfg.dot");
     cfg_of.open(file_name.c_str());
     assert(cfg_of.good() && "Could not open interpreter CFG dump");
 
     interp_monitor_->dumpHighLevelCFG(cfg_of);
     cfg_of.close();
 }
-
 
 } // namespace plugins
 } // namespace s2e
