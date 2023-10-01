@@ -757,6 +757,7 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState *state, uint64_t opcod
         case BASE_S2E_MAKE_CONCOLIC:
             getWarningsStream(state) << "s2e_make_concolic is deprecated. Use s2e_make_symbolic instead.\n";
         case BASE_S2E_MAKE_SYMBOLIC: { /* s2e_make_symbolic */
+            getWarningsStream(state) << "Called make symbolic.\n";
             makeSymbolic(state);
             break;
         }

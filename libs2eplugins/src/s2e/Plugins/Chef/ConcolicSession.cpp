@@ -135,8 +135,15 @@ void ConcolicSession::initialize() {
     tb_tracer_ = static_cast<TranslationBlockTracer*>(
             s2e()->getPlugin("TranslationBlockTracer"));
 
+    s2e()->getInfoStream() << "Concolic - DEBUG 1"
+                                << '\n';
+
     interp_monitor_ = static_cast<InterpreterMonitor*>(
             s2e()->getPlugin("InterpreterMonitor"));
+
+    s2e()->getInfoStream() << "Concolic - DEBUG 2"
+                                << "'" << interp_monitor_ << "'"
+                                << '\n';
 }
 
 
@@ -172,6 +179,8 @@ void ConcolicSession::handleOpcodeInvocation(S2EExecutionState *state, uint64_t 
 int ConcolicSession::startConcolicSession(S2EExecutionState *state,
                                           uint32_t max_time) {
     assert(active_state_ == NULL);
+    s2e()->getInfoStream(state) << "Concolic - start start"
+                                << '\n';
 
     interp_monitor_->startTrace(state);
 
@@ -215,6 +224,8 @@ int ConcolicSession::startConcolicSession(S2EExecutionState *state,
 
 int ConcolicSession::endConcolicSession(S2EExecutionState *state,
                                         bool is_error_path) {
+    getDebugStream(state) << "endConcolicSession" << '\n';
+
     HighLevelTreeNode *trace_node = interp_monitor_->getHLTreeNode(state);
 
     chrono_time_point time_stamp = chrono_clock::now();
@@ -256,7 +267,6 @@ int ConcolicSession::endConcolicSession(S2EExecutionState *state,
                  *all_tc_stream_);
 
     interp_monitor_->cfg().analyzeCFG();
-    //pending_states_->updateWeights();
 
     // Measure this again since the CFG analysis may be expensive
     time_stamp = chrono_clock::now();
@@ -272,10 +282,48 @@ int ConcolicSession::endConcolicSession(S2EExecutionState *state,
     }
 
     // s2e()->getExecutor()->yieldState(*state);
-    s2e()->getExecutor()->terminateState(*state);
+    //s2e()->getExecutor()->terminateState(*state);
     // Unreachable at this point
 
     return CONCOLIC_RET_OK;
+}
+
+
+void ConcolicSession::writeSimpleTestCase(llvm::raw_ostream &os, const ConcreteInputs &inputs) {
+    std::stringstream ss;
+    ConcreteInputs::const_iterator it;
+    for (it = inputs.begin(); it != inputs.end(); ++it) {
+        const VarValuePair &vp = *it;
+        ss << std::setw(20) << vp.first << " = {";
+
+        for (unsigned i = 0; i < vp.second.size(); ++i) {
+            if (i != 0)
+                ss << ", ";
+            ss << std::setw(2) << std::setfill('0') << "0x" << std::hex << (unsigned) vp.second[i] << std::dec;
+        }
+        ss << "}" << std::setfill(' ') << "; ";
+
+        if (vp.second.size() == sizeof(int32_t)) {
+            int32_t valueAsInt = vp.second[0] | ((int32_t) vp.second[1] << 8) | ((int32_t) vp.second[2] << 16) |
+                                 ((int32_t) vp.second[3] << 24);
+            ss << "(int32_t) " << valueAsInt << ", ";
+        }
+        if (vp.second.size() == sizeof(int64_t)) {
+            int64_t valueAsInt = vp.second[0] | ((int64_t) vp.second[1] << 8) | ((int64_t) vp.second[2] << 16) |
+                                 ((int64_t) vp.second[3] << 24) | ((int64_t) vp.second[4] << 32) |
+                                 ((int64_t) vp.second[5] << 40) | ((int64_t) vp.second[6] << 48) |
+                                 ((int64_t) vp.second[7] << 56);
+            ss << "(int64_t) " << valueAsInt << ", ";
+        }
+
+        ss << "(string) \"";
+        for (unsigned i = 0; i < vp.second.size(); ++i) {
+            ss << (char) (std::isprint(vp.second[i]) ? vp.second[i] : '.');
+        }
+        ss << "\"\n";
+    }
+
+    os << ss.str();
 }
 
 
@@ -317,7 +365,7 @@ void ConcolicSession::dumpTestCase(S2EExecutionState *state,
         //out << " " << min_dist << "/" << max_dist;
     }
 
-    klee::AssignmentPtr assignment = state->concolics;
+    /*klee::AssignmentPtr assignment = state->concolics;
 
     for (klee::Assignment::bindings_ty::iterator
                  bit = assignment->bindings.begin(),
@@ -326,7 +374,25 @@ void ConcolicSession::dumpTestCase(S2EExecutionState *state,
 
         out << " " << bit->first->getName() << "=>";
         out << hexstring(assgn_value);
+    }*/
+
+    getWarningsStream(state) << "CONCLIC TEST CASE 1" << '\n';
+
+    ConcreteInputs inputs;
+    bool success = state->getSymbolicSolution(inputs);
+
+    getWarningsStream(state) << "CONCLIC TEST CASE 2 (len = " << inputs.size() << ")" << '\n';
+
+    if (!success) {
+        getWarningsStream(state) << "Could not get symbolic solutions" << '\n';
+        return;
     }
+
+    getWarningsStream(state) << "CONCLIC TEST CASE 3" << '\n';
+
+    writeSimpleTestCase(out, inputs);
+
+    getWarningsStream(state) << "CONCLIC TEST CASE 4" << '\n';
 
     out << '\n';
     out.flush();
@@ -376,7 +442,8 @@ void ConcolicSession::terminateSession(S2EExecutionState *state) {
 
 void ConcolicSession::onInterpreterTrace(S2EExecutionState *state,
                                          HighLevelTreeNode *tree_node) {
-    assert(state == active_state_);
+    //assert(state == active_state_);
+    state = active_state_;
 
     // Clear any lucky strike
     // fork_strike_.clear();
@@ -393,7 +460,13 @@ void ConcolicSession::onInterpreterTrace(S2EExecutionState *state,
 void ConcolicSession::onStateFork(S2EExecutionState *state,
                                   const StateVector &newStates,
                                   const std::vector<ref<Expr> > &newConditions) {
-    assert(state == active_state_);
+    //assert(state == active_state_);
+    state = active_state_;
+
+    getDebugStream(state) << "State " << state->getGuid() << " forked into: \n";
+    for(const auto & newState : newStates) {
+        getDebugStream(state) << "\tstate " << newState->getGuid() << '\n';
+    }
 
     active_fork_point_ = new ForkPoint(active_fork_point_, active_fork_index_,
                                        active_state_->pc,
@@ -416,7 +489,14 @@ void ConcolicSession::onStateFork(S2EExecutionState *state,
 
 
 void ConcolicSession::onStateKill(S2EExecutionState *state) {
-    assert(active_state_ != NULL);
+
+    getDebugStream(state) << "State kill: ";
+    if (state)
+        getDebugStream(state) << state->getGuid() << '\n';
+    else
+        getDebugStream(state) << "NULL\n";
+
+    //assert(active_state_ != NULL);
 
     if (state != active_state_) {
         // This happens when a state was killed at the end of

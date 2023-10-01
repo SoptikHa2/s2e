@@ -154,6 +154,9 @@ add_library(
     s2e/Plugins/Chef/HighLevelUtilities.cpp
     s2e/Plugins/Chef/ConcolicSession.cpp
 
+    # Debug
+    s2e/Plugins/ExampleComms.cpp
+
     ${PROTO_SRCS} ${PROTO_HDRS}
 )
 

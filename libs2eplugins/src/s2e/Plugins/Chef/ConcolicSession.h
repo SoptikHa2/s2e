@@ -146,6 +146,8 @@ private:
     typedef std::set<S2EExecutionState*> StateSet;
     typedef std::map<S2EExecutionState*, double> ForkWeightMap;
     typedef std::map<S2EExecutionState*, std::pair<ForkPoint*, int> > ForkPointMap;
+    typedef std::pair<std::string, std::vector<unsigned char>> VarValuePair;
+    typedef std::vector<VarValuePair> ConcreteInputs;
 
     // Allow the guest to communicate with this plugin using s2e_invoke_plugin
     virtual void handleOpcodeInvocation(S2EExecutionState *state, uint64_t guestDataPtr, uint64_t guestDataSize);
@@ -217,6 +219,8 @@ private:
                      const std::vector<klee::ref<klee::Expr> > &newConditions);
     void onStateKill(S2EExecutionState *state);
     void onTimer();
+
+    void writeSimpleTestCase(llvm::raw_ostream &os, const ConcreteInputs &inputs);
 
     // Disallow copy and assign
     ConcolicSession(const ConcolicSession&) = delete;
