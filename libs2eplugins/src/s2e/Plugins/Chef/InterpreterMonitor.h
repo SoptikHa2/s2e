@@ -55,7 +55,6 @@ struct S2E_INTERPRETERMONITOR_COMMAND {
 } __attribute((packed));
 
 
-
 class InterpreterMonitor : public Plugin, public IPluginInvoker {
 
     S2E_PLUGIN

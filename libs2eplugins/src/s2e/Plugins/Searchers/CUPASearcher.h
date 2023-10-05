@@ -32,6 +32,8 @@
 #include <s2e/Plugins/Searchers/MultiSearcher.h>
 #include <s2e/Plugins/StaticAnalysis/ControlFlowGraph.h>
 #include <s2e/Plugins/Support/KeyValueStore.h>
+#include <s2e/Plugins/Chef/InterpreterMonitor.h>
+#include <s2e/Plugins/Chef/HighLevelUtilities.h>
 #include <s2e/S2E.h>
 #include <s2e/S2EExecutionState.h>
 #include <s2e/Utils.h>
@@ -97,7 +99,7 @@ public:
     }
 
 private:
-    enum Classes { SEED, BATCH, PC, PAGEDIR, FORKCOUNT, PRIORITY, READCOUNT, RANDOM, GROUP };
+    enum Classes { SEED, BATCH, PC, PAGEDIR, FORKCOUNT, PRIORITY, READCOUNT, RANDOM, GROUP, HLPC };
 
     MultiSearcher *m_searchers;
     klee::Searcher *m_top;
@@ -343,6 +345,40 @@ protected:
         m_state = &m_searchers.rbegin()->second->selectState();
         m_lastSelectedTime = t1;
         return *m_state;
+    }
+};
+
+class CUPASearcherHlpcClass : public CUPASearcherClass {
+private:
+    InterpreterMonitor * interp_monitor;
+    sigc::connection on_interpreter_trace;
+    std::map<S2EExecutionState *, HighLevelPC> pcs;
+
+    void onInterpreterTrace(S2EExecutionState *state,
+                            HighLevelTreeNode *tree_node) {
+        pcs[state] = tree_node->instruction()->hlpc();
+    }
+public:
+    CUPASearcherHlpcClass(CUPASearcher *plugin, unsigned level, S2E * s2e) : CUPASearcherClass(plugin, level){
+        interp_monitor = static_cast<InterpreterMonitor*>(s2e->getPlugin("InterpreterMonitor"));
+        on_interpreter_trace = interp_monitor->on_hlpc_update.connect(
+            sigc::mem_fun(*this, &CUPASearcherHlpcClass::onInterpreterTrace));
+   };
+
+   virtual ~CUPASearcherHlpcClass() {
+        on_interpreter_trace.disconnect();
+   }
+
+protected:
+    virtual uint64_t getClass(S2EExecutionState *state) {
+        if (!g_s2e_state)
+            return 0;
+
+        auto hlpc = pcs[state];
+
+        uint64_t cls = hlpc[0] | (((uint64_t)hlpc[1]) << 32);
+
+        return cls;
     }
 };
 

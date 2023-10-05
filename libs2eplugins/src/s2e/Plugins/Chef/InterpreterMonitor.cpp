@@ -32,6 +32,8 @@
 
 #include "InterpreterMonitor.h"
 
+#include <optional>
+
 namespace s2e {
 namespace plugins {
 
@@ -47,31 +49,16 @@ namespace {
 // }
 //
 class InterpreterMonitorState: public PluginState {
-    // Declare any methods and fields you need here
-    unsigned long instruction_count;
-public:
-    InterpreterMonitorState() : instruction_count(0) {}
-
 public:
     static PluginState *factory(Plugin *p, S2EExecutionState *s)
     {
         return new InterpreterMonitorState();
     }
 
-    virtual ~InterpreterMonitorState() {
-        // Destroy any object if needed
-    }
+    virtual ~InterpreterMonitorState() { }
 
     virtual InterpreterMonitorState *clone() const {
         return new InterpreterMonitorState(*this);
-    }
-
-    void IncrementInstructionCount() {
-        instruction_count++;
-    }
-
-    unsigned long GetInstructionCount() {
-        return instruction_count;
     }
 };
 
