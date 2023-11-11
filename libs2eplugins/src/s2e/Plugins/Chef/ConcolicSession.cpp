@@ -247,8 +247,8 @@ int ConcolicSession::endConcolicSession(S2EExecutionState *state,
     s2e()->getInfoStream(state) << "Processing test case\n";
 
     if (interp_monitor_->cfg().changed()) {
-        assert(trace_node->path_counter() == 1
-               && "How could you miss it the first time?");
+        //assert(trace_node->path_counter() == 1
+        //       && "How could you miss it the first time?");
         s2e()->getDebugStream(state) << "New CFG fragment discovered!"
                                         << '\n';
 
@@ -266,7 +266,7 @@ int ConcolicSession::endConcolicSession(S2EExecutionState *state,
     dumpTestCase(state, time_stamp, time_stamp - path_time_stamp_,
                  *all_tc_stream_);
 
-    interp_monitor_->cfg().analyzeCFG();
+    //interp_monitor_->cfg().analyzeCFG();
 
     // Measure this again since the CFG analysis may be expensive
     time_stamp = chrono_clock::now();
