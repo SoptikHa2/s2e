@@ -99,6 +99,8 @@ void CUPASearcher::initialize() {
             m_classes.push_back(GROUP);
         } else if (*it == "hlpc") {
             m_classes.push_back(HLPC);
+        } else if (*it == "hlop") {
+            m_classes.push_back(HLOP);
         } else {
             getWarningsStream() << "Unknown class " << *it;
             exit(-1);
@@ -161,6 +163,8 @@ klee::Searcher *CUPASearcher::createSearcher(unsigned level) {
             case GROUP:
                 searcher = new CUPASearcherGroupClass(this, level);
                 break;
+            case HLOP:
+                searcher = new CUPASearcherHlopClass(this, level, s2e());
             case HLPC:
                 searcher = new CUPASearcherHlpcClass(this, level, s2e());
                 break;

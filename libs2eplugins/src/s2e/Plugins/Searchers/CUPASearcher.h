@@ -32,8 +32,8 @@
 #include <s2e/Plugins/Searchers/MultiSearcher.h>
 #include <s2e/Plugins/StaticAnalysis/ControlFlowGraph.h>
 #include <s2e/Plugins/Support/KeyValueStore.h>
-#include <s2e/Plugins/Chef/InterpreterMonitor.h>
-#include <s2e/Plugins/Chef/HighLevelUtilities.h>
+#include <s2e/Plugins/Chef/Chef.h>
+#include <s2e/Plugins/Chef/Utils.hpp>
 #include <s2e/S2E.h>
 #include <s2e/S2EExecutionState.h>
 #include <s2e/Utils.h>
@@ -99,7 +99,7 @@ public:
     }
 
 private:
-    enum Classes { SEED, BATCH, PC, PAGEDIR, FORKCOUNT, PRIORITY, READCOUNT, RANDOM, GROUP, HLPC };
+    enum Classes { SEED, BATCH, PC, PAGEDIR, FORKCOUNT, PRIORITY, READCOUNT, RANDOM, GROUP, HLPC, HLOP };
 
     MultiSearcher *m_searchers;
     klee::Searcher *m_top;
@@ -350,21 +350,21 @@ protected:
 
 class CUPASearcherHlpcClass : public CUPASearcherClass {
 private:
-    InterpreterMonitor * interp_monitor;
+    Chef * chef;
     sigc::connection on_interpreter_trace;
-    std::map<int, HighLevelPC> pcs;
+    std::map<int, uint32_t> pcs;
     S2E * s2e;
 
     void onInterpreterTrace(S2EExecutionState *state,
-                            HighLevelTreeNode *tree_node) {
-        s2e->getWarningsStream(state) << "CHEF CUPA: On interpreter trace! hlpc: " << tree_node->instruction()->hlpc()[0] << ", " << tree_node->instruction()->hlpc()[1] << "\n";
-        pcs[state->getID()] = tree_node->instruction()->hlpc();
+                            s2e::HighLevelInstruction instruction) {
+        s2e->getDebugStream(state) << "CHEF CUPA: On interpreter trace! hlpc: " << instruction.pc << "\n";
+        pcs[state->getID()] = instruction.pc;
     }
 public:
     CUPASearcherHlpcClass(CUPASearcher *plugin, unsigned level, S2E * s2e) : CUPASearcherClass(plugin, level){
         this->s2e = s2e;
-        interp_monitor = static_cast<InterpreterMonitor*>(s2e->getPlugin("InterpreterMonitor"));
-        on_interpreter_trace = interp_monitor->on_hlpc_update.connect(
+        chef = static_cast<Chef*>(s2e->getPlugin("Chef"));
+        on_interpreter_trace = chef->on_hlpc_update.connect(
             sigc::mem_fun(*this, &CUPASearcherHlpcClass::onInterpreterTrace));
    };
 
@@ -379,14 +379,53 @@ protected:
 
         auto hlpc = pcs[state->getID()];
 
-        uint64_t cls = (hlpc[0] & 0xFFFF) | (((uint64_t)hlpc[1]) << 32);
+        uint64_t cls = hlpc;
 
-        s2e->getWarningsStream(state) << "Chef CUPA returned class " << cls << '\n';
+        s2e->getInfoStream(state) << "Chef CUPA returned class " << cls << '\n';
 
         return cls;
     }
 };
 
+
+class CUPASearcherHlopClass : public CUPASearcherClass {
+private:
+    Chef * chef;
+    sigc::connection on_interpreter_trace;
+    std::map<int, uint32_t> ops;
+    S2E * s2e;
+
+    void onInterpreterTrace(S2EExecutionState *state,
+                            s2e::HighLevelInstruction instruction) {
+        s2e->getDebugStream(state) << "CHEF CUPA: On interpreter trace! hlop: " << instruction.pc << "\n";
+        ops[state->getID()] = instruction.opcode;
+    }
+public:
+    CUPASearcherHlopClass(CUPASearcher *plugin, unsigned level, S2E * s2e) : CUPASearcherClass(plugin, level){
+        this->s2e = s2e;
+        chef = static_cast<Chef*>(s2e->getPlugin("Chef"));
+        on_interpreter_trace = chef->on_hlpc_update.connect(
+            sigc::mem_fun(*this, &CUPASearcherHlopClass::onInterpreterTrace));
+    };
+
+    virtual ~CUPASearcherHlopClass() {
+        on_interpreter_trace.disconnect();
+    }
+
+protected:
+    virtual uint64_t getClass(S2EExecutionState *state) {
+        if (!g_s2e_state)
+            return 0;
+
+        auto opcode = ops[state->getID()];
+
+        uint64_t cls = opcode;
+
+        s2e->getInfoStream(state) << "Chef CUPA returned class " << cls << '\n';
+
+        return cls;
+    }
+};
 } // namespace plugins
 } // namespace s2e
 

@@ -23,6 +23,14 @@ namespace s2e {
         }
         return out;
     }
+
+    struct HighLevelInstruction {
+        uint32_t opcode;
+        uint32_t pc;
+        uint32_t line;
+        unsigned char function[61];
+        unsigned char filename[61];
+    };
 }
 
 #endif // S2E_UTILS_HPP
