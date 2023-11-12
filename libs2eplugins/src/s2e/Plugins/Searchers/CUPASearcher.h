@@ -352,13 +352,13 @@ class CUPASearcherHlpcClass : public CUPASearcherClass {
 private:
     InterpreterMonitor * interp_monitor;
     sigc::connection on_interpreter_trace;
-    std::map<S2EExecutionState *, HighLevelPC> pcs;
+    std::map<int, HighLevelPC> pcs;
     S2E * s2e;
 
     void onInterpreterTrace(S2EExecutionState *state,
                             HighLevelTreeNode *tree_node) {
         s2e->getWarningsStream(state) << "CHEF CUPA: On interpreter trace! hlpc: " << tree_node->instruction()->hlpc()[0] << ", " << tree_node->instruction()->hlpc()[1] << "\n";
-        pcs[state] = tree_node->instruction()->hlpc();
+        pcs[state->getID()] = tree_node->instruction()->hlpc();
     }
 public:
     CUPASearcherHlpcClass(CUPASearcher *plugin, unsigned level, S2E * s2e) : CUPASearcherClass(plugin, level){
@@ -377,9 +377,9 @@ protected:
         if (!g_s2e_state)
             return 0;
 
-        auto hlpc = pcs[state];
+        auto hlpc = pcs[state->getID()];
 
-        uint64_t cls = hlpc[0] | (((uint64_t)hlpc[1]) << 32);
+        uint64_t cls = (hlpc[0] & 0xFFFF) | (((uint64_t)hlpc[1]) << 32);
 
         s2e->getWarningsStream(state) << "Chef CUPA returned class " << cls << '\n';
 

@@ -68,6 +68,8 @@ class ConcolicSessionState: public PluginState {
     // Declare any methods and fields you need here
 
 public:
+    HighLevelInstruction * hl = nullptr;
+
     static PluginState *factory(Plugin *p, S2EExecutionState *s) {
         return new ConcolicSessionState();
     }
@@ -331,10 +333,13 @@ void ConcolicSession::dumpTestCase(S2EExecutionState *state,
                                    chrono_time_point time_stamp,
                                    chrono_duration total_delta,
                                    llvm::raw_ostream &out) {
-    out << (time_stamp - start_time_stamp_).count();
-    out << " " << hexval(starting_fork_point_->pc());
-    out << " " << starting_fork_point_->hl_node()->instruction()->filename << ":" <<
-        starting_fork_point_->hl_node()->instruction()->function << ":" << starting_fork_point_->hl_node()->instruction()->line;
+    out << (time_stamp - start_time_stamp_).count() << " ";
+    out << hexval((uint64_t)state->pc) << " ";
+    DECLARE_PLUGINSTATE(ConcolicSessionState, state);
+    if (plgState->hl != nullptr) {
+        out << " " << plgState->hl->filename << ":" <<
+            plgState->hl->function << ":" << plgState->hl->line;
+    }
 
     if (extra_details_) {
         //int min_dist, max_dist;
@@ -443,7 +448,10 @@ void ConcolicSession::terminateSession(S2EExecutionState *state) {
 void ConcolicSession::onInterpreterTrace(S2EExecutionState *state,
                                          HighLevelTreeNode *tree_node) {
     //assert(state == active_state_);
-    state = active_state_;
+    active_state_ = state;
+
+    DECLARE_PLUGINSTATE(ConcolicSessionState, state);
+    plgState->hl = tree_node->instruction();
 
     // Clear any lucky strike
     // fork_strike_.clear();
@@ -461,7 +469,7 @@ void ConcolicSession::onStateFork(S2EExecutionState *state,
                                   const StateVector &newStates,
                                   const std::vector<ref<Expr> > &newConditions) {
     //assert(state == active_state_);
-    state = active_state_;
+    active_state_ = state;
 
     getDebugStream(state) << "State " << state->getGuid() << " forked into: \n";
     for(const auto & newState : newStates) {
