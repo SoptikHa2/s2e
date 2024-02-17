@@ -348,10 +348,14 @@ protected:
     }
 };
 
+/// This is part of Chef plugin.
+/// It enables CUPA searching based on high-level PC.
+/// This one listens to interpreter tracing and remembers pair <state, pc>.
 class CUPASearcherHlpcClass : public CUPASearcherClass {
 private:
     Chef * chef;
     sigc::connection on_interpreter_trace;
+    /// State ID -> PC
     std::map<int, uint32_t> pcs;
     S2E * s2e;
 
@@ -364,8 +368,11 @@ public:
     CUPASearcherHlpcClass(CUPASearcher *plugin, unsigned level, S2E * s2e) : CUPASearcherClass(plugin, level){
         this->s2e = s2e;
         chef = static_cast<Chef*>(s2e->getPlugin("Chef"));
-        on_interpreter_trace = chef->on_hlpc_update.connect(
-            sigc::mem_fun(*this, &CUPASearcherHlpcClass::onInterpreterTrace));
+        if (chef)
+            on_interpreter_trace = chef->on_hlpc_update.connect(
+                sigc::mem_fun(*this, &CUPASearcherHlpcClass::onInterpreterTrace));
+        else
+            s2e->getWarningsStream() << "Chef CUPA: Chef plugin not found\n";
    };
 
    virtual ~CUPASearcherHlpcClass() {
@@ -374,30 +381,34 @@ public:
 
 protected:
     virtual uint64_t getClass(S2EExecutionState *state) {
-        if (!g_s2e_state)
+        if (!g_s2e_state || !state)
             return 0;
 
         auto hlpc = pcs[state->getID()];
 
         uint64_t cls = hlpc;
 
-        s2e->getInfoStream(state) << "Chef CUPA returned class " << cls << '\n';
+        s2e->getInfoStream(state) << "Chef CUPA (pc) returned class " << cls << '\n';
 
         return cls;
     }
 };
 
 
+/// This is part of Chef plugin.
+/// It enables CUPA searching based on high-level OP.
+/// This one listens to interpreter tracing and remembers pair <state, op>.
 class CUPASearcherHlopClass : public CUPASearcherClass {
 private:
     Chef * chef;
     sigc::connection on_interpreter_trace;
+    /// State ID -> OP
     std::map<int, uint32_t> ops;
     S2E * s2e;
 
     void onInterpreterTrace(S2EExecutionState *state,
                             s2e::HighLevelInstruction instruction) {
-        s2e->getDebugStream(state) << "CHEF CUPA: On interpreter trace! hlop: " << instruction.pc << "\n";
+        s2e->getDebugStream(state) << "CHEF CUPA: On interpreter trace! hlop: " << instruction.opcode << "\n";
         ops[state->getID()] = instruction.opcode;
     }
 public:
@@ -414,14 +425,14 @@ public:
 
 protected:
     virtual uint64_t getClass(S2EExecutionState *state) {
-        if (!g_s2e_state)
+        if (!g_s2e_state || !state)
             return 0;
 
         auto opcode = ops[state->getID()];
 
         uint64_t cls = opcode;
 
-        s2e->getInfoStream(state) << "Chef CUPA returned class " << cls << '\n';
+        s2e->getInfoStream(state) << "Chef CUPA (op) returned class " << cls << '\n';
 
         return cls;
     }

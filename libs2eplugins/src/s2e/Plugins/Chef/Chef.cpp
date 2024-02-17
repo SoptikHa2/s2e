@@ -13,18 +13,7 @@ namespace {
 
 using namespace std;
 
-//
-// This class can optionally be used to store per-state plugin data.
-//
-// Use it as follows:
-// void Chef::onEvent(S2EExecutionState *state, ...) {
-//     DECLARE_PLUGINSTATE(ChefState, state);
-//     plgState->...
-// }
-//
 class ChefState: public PluginState {
-    // Declare any methods and fields you need here
-
 public:
     optional<HighLevelInstruction> lastInstructionExecuted;
     ChefStatus currentStatus = Inactive;
@@ -42,7 +31,7 @@ public:
 
 }
 
-S2E_DEFINE_PLUGIN(Chef, "Describe what the plugin does here", "", );
+S2E_DEFINE_PLUGIN(Chef, "Chef provides support for symbolically executing interpreters. This is a version modified by Petr Stastny. See 'Prototyping symbolic execution engines for interpreted languages' by Bucur et al. for more info.", "", );
 
 void Chef::initialize() {
     // TODO: cfg, path-specific test cases
@@ -53,6 +42,7 @@ void Chef::initialize() {
 }
 
 
+/// Interpreter emited a message for us.
 void Chef::handleOpcodeInvocation(S2EExecutionState *state, uint64_t guestDataPtr, uint64_t guestDataSize) {
     S2E_CHEF_COMMAND command;
 
@@ -68,24 +58,32 @@ void Chef::handleOpcodeInvocation(S2EExecutionState *state, uint64_t guestDataPt
 
     HighLevelInstruction instruction = {};
     switch (command.Command) {
-        // TODO: Impl
         case START_CHEF:
             if(!isAtState(Inactive, state)) break;
+
             startSession(state);
             break;
         case END_CHEF:
             if(!isAtState(Active, state)) break;
+
+            // We capture whether an error happened (so the state can be written to the error test cases file)
             endSession(state, command.data.end_chef.error_happened);
             break;
         case TRACE_UPDATE:
+            // R tends to execute a lot of stuff before user code is started, there is no point in warning
+            // the user if Chef is not turned on yet. Disable warn.
             if(!isAtState(Active, state, false)) break;
+
             instruction = {
                 command.data.trace.op_code,
                 command.data.trace.pc,
                 command.data.trace.line
             };
+            // Record function and filename, up to 60 characters.
+            // SAFETY: we are copying 60 bytes to 61-bytes-long buffer, which was null-set before.
             strncpy((char*)instruction.function, (const char*)command.data.trace.function, 60);
             strncpy((char*)instruction.filename, (const char*)command.data.trace.filename, 60);
+            // Record instruction update
             doUpdateHLPC(state, instruction);
         break;
     default:
@@ -104,6 +102,7 @@ bool Chef::isAtState(ChefStatus targetStatus, S2EExecutionState * state, bool wa
     return true;
 }
 
+/// Mark chef as started and record time of start.
 void Chef::startSession(S2EExecutionState *state) {
     DECLARE_PLUGINSTATE(ChefState, state);
     plgState->currentStatus = Active;
@@ -114,11 +113,11 @@ void Chef::startSession(S2EExecutionState *state) {
 
     start_time_stamp = chrono_clock::now();
 
-    // TODO: fork callback
     on_state_kill = s2e()->getCorePlugin()->onStateKill.connect(
         sigc::mem_fun(*this, &Chef::onStateKill));
 }
 
+/// Stop receiving instruction updates and if error happened, dump way how to get to current state into a file.
 void Chef::endSession(S2EExecutionState *state, bool error_happened) {
     DECLARE_PLUGINSTATE(ChefState, state);
     plgState->currentStatus = Inactive;
@@ -137,6 +136,7 @@ void Chef::endSession(S2EExecutionState *state, bool error_happened) {
     dumpTestCase(state, *all_tc_stream);
 }
 
+/// Dump info about current state into a file, including time from session start.
 void Chef::dumpTestCase(S2EExecutionState *state, llvm::raw_ostream &out) {
     DECLARE_PLUGINSTATE(ChefState, state);
 
@@ -155,19 +155,25 @@ void Chef::dumpTestCase(S2EExecutionState *state, llvm::raw_ostream &out) {
         return;
     }
 
+    // Write the variables themselves
     writeSimpleTestCase(out, inputs);
 
     out << '\n';
     out.flush();
 }
 
+/// Output concrete values of variables into given stream
 void Chef::writeSimpleTestCase(llvm::raw_ostream &os, const ConcreteInputs &inputs) {
     std::stringstream ss;
     ConcreteInputs::const_iterator it;
     for (it = inputs.begin(); it != inputs.end(); ++it) {
+        // This contains the name and value
         const VarValuePair &vp = *it;
         ss << std::setw(20) << vp.first << " = {";
 
+        // We do not know the type of the variable, so we will guess.
+        // We will output raw bytes and value of the data as int32, int64 and a string.
+        // If it is either of those, user will be able to easily pick it up.
         for (unsigned i = 0; i < vp.second.size(); ++i) {
             if (i != 0)
                 ss << ", ";
@@ -189,6 +195,7 @@ void Chef::writeSimpleTestCase(llvm::raw_ostream &os, const ConcreteInputs &inpu
         }
 
         ss << "(string) \"";
+        // Replace nonprintable chracters with a dot
         for (unsigned i = 0; i < vp.second.size(); ++i) {
             ss << (char) (std::isprint(vp.second[i]) ? vp.second[i] : '.');
         }
@@ -198,12 +205,15 @@ void Chef::writeSimpleTestCase(llvm::raw_ostream &os, const ConcreteInputs &inpu
     os << ss.str();
 }
 
+/// A high level instruction was executed. Record it.
 void Chef::doUpdateHLPC(S2EExecutionState *state, HighLevelInstruction instruction) {
     DECLARE_PLUGINSTATE(ChefState, state);
     plgState->lastInstructionExecuted.emplace(instruction);
 
     on_hlpc_update.emit(state, instruction);
 }
+
+/// The state was killed, end the session if it didn't end already.
 void Chef::onStateKill(S2EExecutionState *state) {
     if (isAtState(Active, state, false)) {
         endSession(state, false);
