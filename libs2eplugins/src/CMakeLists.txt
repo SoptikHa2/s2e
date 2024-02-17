@@ -149,9 +149,7 @@ add_library(
     s2e/Plugins/Lua/LuaCoreEvents.cpp
 
     # Chef
-    s2e/Plugins/Chef/InterpreterMonitor.cpp
     s2e/Plugins/Chef/HighLevelUtilities.cpp
-    s2e/Plugins/Chef/ConcolicSession.cpp
     s2e/Plugins/Chef/Chef.cpp
 
     # Debug
