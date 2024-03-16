@@ -2,6 +2,7 @@
 #define S2E_PLUGINS_CHEF_H
 
 #include <vector>
+#include <set>
 
 #include <s2e/Plugin.h>
 #include <s2e/Plugins/Core/BaseInstructions.h>
@@ -55,6 +56,10 @@ private:
     // llvm::raw_ostream *paths_tc_stream;
     llvm::raw_ostream *error_tc_stream = nullptr;
     llvm::raw_ostream *all_tc_stream = nullptr;
+    // We are writing JSON arrays into the files. Because of that,
+    // we need to remember, per each stream, whether we have already written
+    // at least one testcase. If we did, we have to add a comma to make the JSON valid!
+    std::unordered_set<llvm::raw_ostream *> streams_with_a_testcase = {};
 
     using chrono_clock = std::chrono::system_clock;
     using chrono_time_point = std::chrono::time_point<chrono_clock>;
@@ -67,10 +72,7 @@ public:
     Chef(S2E *s2e) : Plugin(s2e) {
     }
 
-    virtual ~Chef() {
-        delete error_tc_stream;
-        delete all_tc_stream;
-    }
+    virtual ~Chef();
 
     void initialize();
 
@@ -85,7 +87,7 @@ private:
 
     bool isAtState(ChefStatus targetStatus, S2EExecutionState *state, bool warn = true);
 
-    void writeSimpleTestCase(llvm::raw_ostream &os, const ConcreteInputs &inputs);
+    void writeSimpleTestCase(llvm::raw_ostream &os, const ConcreteInputs &inputs, long timestamp, uint64_t pc, const unsigned char * filename, const unsigned char * function, uint32_t line, bool prefixComma);
 
     void dumpTestCase(S2EExecutionState *state, llvm::raw_ostream &out);
 

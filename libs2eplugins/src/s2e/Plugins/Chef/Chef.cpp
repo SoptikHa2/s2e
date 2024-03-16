@@ -39,6 +39,20 @@ void Chef::initialize() {
     //paths_tc_stream = s2e()->openOutputFile("hl_test_cases.dat");
     error_tc_stream = s2e()->openOutputFile("err_test_cases.dat");
     all_tc_stream = s2e()->openOutputFile("all_test_cases.dat");
+
+    // Begin JSON array
+    *all_tc_stream << "[\n";
+    *error_tc_stream << "[\n";
+}
+
+
+Chef::~Chef() {
+    // End JSON array
+    *all_tc_stream << "]\n";
+    *error_tc_stream << "]\n";
+
+    delete error_tc_stream;
+    delete all_tc_stream;
 }
 
 
@@ -140,13 +154,6 @@ void Chef::endSession(S2EExecutionState *state, bool error_happened) {
 void Chef::dumpTestCase(S2EExecutionState *state, llvm::raw_ostream &out) {
     DECLARE_PLUGINSTATE(ChefState, state);
 
-    out << (chrono_clock::now() - start_time_stamp).count() << " ";
-    out << hexval((uint64_t)state->pc) << " ";
-    if (plgState->lastInstructionExecuted) {
-        out << " " << plgState->lastInstructionExecuted->filename << ":" <<
-            plgState->lastInstructionExecuted->function << ":" << plgState->lastInstructionExecuted->line;
-    }
-
     ConcreteInputs inputs;
     bool success = state->getSymbolicSolution(inputs);
 
@@ -156,52 +163,80 @@ void Chef::dumpTestCase(S2EExecutionState *state, llvm::raw_ostream &out) {
     }
 
     // Write the variables themselves
-    writeSimpleTestCase(out, inputs);
+    bool writeComma = streams_with_a_testcase.count(&out) >= 1;
+    auto timestamp = (chrono_clock::now() - start_time_stamp) / 1s;
+    writeSimpleTestCase(out, inputs, timestamp, plgState->lastInstructionExecuted->pc, plgState->lastInstructionExecuted->filename,
+                    plgState->lastInstructionExecuted->function, plgState->lastInstructionExecuted->line, writeComma);
 
-    out << '\n';
+    streams_with_a_testcase.insert(&out);
+
     out.flush();
 }
 
 /// Output concrete values of variables into given stream
-void Chef::writeSimpleTestCase(llvm::raw_ostream &os, const ConcreteInputs &inputs) {
+void Chef::writeSimpleTestCase(llvm::raw_ostream &os, const ConcreteInputs &inputs, long timestamp, uint64_t pc, const unsigned char * filename, const unsigned char * function, uint32_t line, bool prefixComma) {
     std::stringstream ss;
-    ConcreteInputs::const_iterator it;
-    for (it = inputs.begin(); it != inputs.end(); ++it) {
-        // This contains the name and value
-        const VarValuePair &vp = *it;
-        ss << std::setw(20) << vp.first << " = {";
+
+    if (prefixComma) ss << ",";
+    ss << "{\n";
+
+    // Output metadata
+    ss << "\t\"timestamp\" : " << timestamp << ",\n";
+    ss << "\t\"pc\" : " << pc << ",\n";
+    ss << "\t\"filename\" : \"" << filename << "\",\n";
+    ss << "\t\"function\" : \"" << function << "\",\n";
+    ss << "\t\"line\" : " << line << ",\n";
+
+    // Output input variables
+    ss << "\t\"inputs\": [\n";
+
+    bool isFirst = true;
+    for (const VarValuePair & vp : inputs) {
+        // vp containas name and value of the variable
+
+        ss << "\t";
+        if (!isFirst)
+            ss << ",";
+
+        isFirst = false;
+
+        ss << "{ \"name\" : \"" << vp.first << "\",\n\t\t";
 
         // We do not know the type of the variable, so we will guess.
         // We will output raw bytes and value of the data as int32, int64 and a string.
         // If it is either of those, user will be able to easily pick it up.
+        // We want to print those hexes as a string, so user can recognize it.
+        // Automated tools will be able to parse it as well, but they are secondary concern.
+        ss << "\"bytes\" : \"";
         for (unsigned i = 0; i < vp.second.size(); ++i) {
             if (i != 0)
-                ss << ", ";
+                ss << " ";
             ss << std::setw(2) << std::setfill('0') << "0x" << std::hex << (unsigned) vp.second[i] << std::dec;
         }
-        ss << "}" << std::setfill(' ') << "; ";
+        ss << "\"" << std::setfill(' ') << ",\n\t\t";
 
         if (vp.second.size() == sizeof(int32_t)) {
             int32_t valueAsInt = vp.second[0] | ((int32_t) vp.second[1] << 8) | ((int32_t) vp.second[2] << 16) |
                                  ((int32_t) vp.second[3] << 24);
-            ss << "(int32_t) " << valueAsInt << ", ";
+            ss << "\"i32\" : " << valueAsInt << ",\n\t\t";
         }
         if (vp.second.size() == sizeof(int64_t)) {
             int64_t valueAsInt = vp.second[0] | ((int64_t) vp.second[1] << 8) | ((int64_t) vp.second[2] << 16) |
                                  ((int64_t) vp.second[3] << 24) | ((int64_t) vp.second[4] << 32) |
                                  ((int64_t) vp.second[5] << 40) | ((int64_t) vp.second[6] << 48) |
                                  ((int64_t) vp.second[7] << 56);
-            ss << "(int64_t) " << valueAsInt << ", ";
+            ss << "\"i64\" : " << valueAsInt << ",\n\t\t";
         }
 
-        ss << "(string) \"";
+        ss << "\"string\" : \"";
         // Replace nonprintable chracters with a dot
         for (unsigned i = 0; i < vp.second.size(); ++i) {
             ss << (char) (std::isprint(vp.second[i]) ? vp.second[i] : '.');
         }
-        ss << "\"\n";
+        ss << "\"}\n";
     }
 
+    ss << "\t]\n}\n";
     os << ss.str();
 }
 
