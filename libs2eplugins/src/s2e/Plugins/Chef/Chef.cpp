@@ -129,6 +129,14 @@ void Chef::startSession(S2EExecutionState *state) {
 
     on_state_kill = s2e()->getCorePlugin()->onStateKill.connect(
         sigc::mem_fun(*this, &Chef::onStateKill));
+
+    LinuxMonitor *linux = s2e()->getPlugin<LinuxMonitor>();
+    if (linux) {
+        on_linux_segfault = linux->onSegFault.connect(sigc::mem_fun(*this, &Chef::onSegFault));
+        getInfoStream(state) << "Connected to LinuxMonitor. Segfaults will generate an error test case.\n";
+   } else {
+        getInfoStream(state) << "LinuxMonitor not found. Segfaults will not generate an error test case.\n";
+   }
 }
 
 /// Stop receiving instruction updates and if error happened, dump way how to get to current state into a file.
@@ -252,6 +260,11 @@ void Chef::doUpdateHLPC(S2EExecutionState *state, HighLevelInstruction instructi
 void Chef::onStateKill(S2EExecutionState *state) {
     if (isAtState(Active, state, false)) {
         endSession(state, false);
+    }
+}
+void Chef::onSegFault(S2EExecutionState *state, uint64_t pid, uint64_t pc) {
+    if (isAtState(Active, state, false)) {
+        endSession(state, true);
     }
 }
 } // namespace plugins

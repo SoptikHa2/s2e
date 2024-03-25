@@ -6,6 +6,7 @@
 
 #include <s2e/Plugin.h>
 #include <s2e/Plugins/Core/BaseInstructions.h>
+#include <s2e/Plugins/OSMonitors/Linux/LinuxMonitor.h>
 
 #include "Utils.hpp"
 
@@ -67,6 +68,7 @@ private:
     chrono_time_point start_time_stamp;
 
     sigc::connection on_state_kill;
+    sigc::connection on_linux_segfault;
 
 public:
     Chef(S2E *s2e) : Plugin(s2e) {
@@ -94,6 +96,7 @@ private:
     void doUpdateHLPC(S2EExecutionState *state, HighLevelInstruction instruction);
 
     void onStateKill(S2EExecutionState *state);
+    void onSegFault(S2EExecutionState *state, uint64_t pid, uint64_t pc);
 };
 } // namespace plugins
 } // namespace s2e
