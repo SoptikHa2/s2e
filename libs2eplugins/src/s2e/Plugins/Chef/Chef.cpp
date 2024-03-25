@@ -43,6 +43,18 @@ void Chef::initialize() {
     // Begin JSON array
     *all_tc_stream << "[\n";
     *error_tc_stream << "[\n";
+
+    // Subscribe to signals from other plugins
+    on_state_kill = s2e()->getCorePlugin()->onStateKill.connect(
+        sigc::mem_fun(*this, &Chef::onStateKill));
+
+    LinuxMonitor *linux = s2e()->getPlugin<LinuxMonitor>();
+    if (linux) {
+        on_linux_segfault = linux->onSegFault.connect(sigc::mem_fun(*this, &Chef::onSegFault));
+        getInfoStream() << "Connected to LinuxMonitor. Segfaults will generate an error test case.\n";
+    } else {
+        getInfoStream() << "LinuxMonitor not found. Segfaults will not generate an error test case.\n";
+    }
 }
 
 
@@ -53,6 +65,9 @@ Chef::~Chef() {
 
     delete error_tc_stream;
     delete all_tc_stream;
+
+    on_state_kill.disconnect();
+    on_linux_segfault.disconnect();
 }
 
 
@@ -126,17 +141,6 @@ void Chef::startSession(S2EExecutionState *state) {
     getInfoStream(state) << "Chef started\n";
 
     start_time_stamp = chrono_clock::now();
-
-    on_state_kill = s2e()->getCorePlugin()->onStateKill.connect(
-        sigc::mem_fun(*this, &Chef::onStateKill));
-
-    LinuxMonitor *linux = s2e()->getPlugin<LinuxMonitor>();
-    if (linux) {
-        on_linux_segfault = linux->onSegFault.connect(sigc::mem_fun(*this, &Chef::onSegFault));
-        getInfoStream(state) << "Connected to LinuxMonitor. Segfaults will generate an error test case.\n";
-   } else {
-        getInfoStream(state) << "LinuxMonitor not found. Segfaults will not generate an error test case.\n";
-   }
 }
 
 /// Stop receiving instruction updates and if error happened, dump way how to get to current state into a file.
