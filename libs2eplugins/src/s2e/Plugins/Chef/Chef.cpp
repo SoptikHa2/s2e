@@ -241,9 +241,16 @@ void Chef::writeSimpleTestCase(llvm::raw_ostream &os, const ConcreteInputs &inpu
         }
 
         ss << "\"string\" : \"";
-        // Replace nonprintable chracters with a dot
+        // Replace nonprintable chracters with an escape code; escape \ and "
         for (unsigned i = 0; i < vp.second.size(); ++i) {
-            ss << (char) (std::isprint(vp.second[i]) ? vp.second[i] : '.');
+            if (vp.second[i] == '\\' || vp.second[i] == '\"') {
+                ss << "\\" << (char)vp.second[i];
+            } else if (std::isprint(vp.second[i])) {
+                ss << (char)vp.second[i];
+            } else {
+                // nonprintable -> escape
+                ss << "\\x" << std::hex << (unsigned) vp.second[i] << std::dec;
+            }
         }
         ss << "\"}\n";
     }
