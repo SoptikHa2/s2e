@@ -34,14 +34,11 @@ public:
 S2E_DEFINE_PLUGIN(Chef, "Chef provides support for symbolically executing interpreters. This is a version modified by Petr Stastny. See 'Prototyping symbolic execution engines for interpreted languages' by Bucur et al. for more info.", "", );
 
 void Chef::initialize() {
-    // TODO: cfg, path-specific test cases
-    //cfg_tc_stream = s2e()->openOutputFile("cfg_test_cases.dat");
-    //paths_tc_stream = s2e()->openOutputFile("hl_test_cases.dat");
     error_tc_stream = s2e()->openOutputFile("err_test_cases.dat");
-    all_tc_stream = s2e()->openOutputFile("all_test_cases.dat");
+    success_tc_stream = s2e()->openOutputFile("successful_test_cases.dat");
 
     // Begin JSON array
-    *all_tc_stream << "[\n";
+    *success_tc_stream << "[\n";
     *error_tc_stream << "[\n";
 
     // Subscribe to signals from other plugins
@@ -60,11 +57,11 @@ void Chef::initialize() {
 
 Chef::~Chef() {
     // End JSON array
-    *all_tc_stream << "]\n";
+    *success_tc_stream << "]\n";
     *error_tc_stream << "]\n";
 
     delete error_tc_stream;
-    delete all_tc_stream;
+    delete success_tc_stream;
 
     on_state_kill.disconnect();
     on_linux_segfault.disconnect();
@@ -157,9 +154,9 @@ void Chef::endSession(S2EExecutionState *state, bool error_happened) {
 
     if (error_happened) {
         dumpTestCase(state, *error_tc_stream);
+    } else {
+        dumpTestCase(state, *success_tc_stream);
     }
-
-    dumpTestCase(state, *all_tc_stream);
 }
 
 /// Dump info about current state into a file, including time from session start.
@@ -178,7 +175,7 @@ void Chef::dumpTestCase(S2EExecutionState *state, llvm::raw_ostream &out) {
     bool writeComma = streams_with_a_testcase.count(&out) >= 1;
     auto timestamp = (chrono_clock::now() - start_time_stamp) / 1s;
     writeSimpleTestCase(out, inputs, timestamp, plgState->lastInstructionExecuted->pc, plgState->lastInstructionExecuted->filename,
-                    plgState->lastInstructionExecuted->function, plgState->lastInstructionExecuted->line, writeComma);
+                    plgState->lastInstructionExecuted->function, plgState->lastInstructionExecuted->line, state->getID(), writeComma);
 
     streams_with_a_testcase.insert(&out);
 
@@ -186,7 +183,7 @@ void Chef::dumpTestCase(S2EExecutionState *state, llvm::raw_ostream &out) {
 }
 
 /// Output concrete values of variables into given stream
-void Chef::writeSimpleTestCase(llvm::raw_ostream &os, const ConcreteInputs &inputs, long timestamp, uint64_t pc, const unsigned char * filename, const unsigned char * function, uint32_t line, bool prefixComma) {
+void Chef::writeSimpleTestCase(llvm::raw_ostream &os, const ConcreteInputs &inputs, long timestamp, uint64_t pc, const unsigned char * filename, const unsigned char * function, uint32_t line, uint32_t stateId, bool prefixComma) {
     std::stringstream ss;
 
     if (prefixComma) ss << ",";
@@ -198,6 +195,7 @@ void Chef::writeSimpleTestCase(llvm::raw_ostream &os, const ConcreteInputs &inpu
     ss << "\t\"filename\" : \"" << filename << "\",\n";
     ss << "\t\"function\" : \"" << function << "\",\n";
     ss << "\t\"line\" : " << line << ",\n";
+    ss << "\t\"stateId\" : " << stateId << ",\n";
 
     // Output input variables
     ss << "\t\"inputs\": [\n";
@@ -249,7 +247,7 @@ void Chef::writeSimpleTestCase(llvm::raw_ostream &os, const ConcreteInputs &inpu
                 ss << (char)vp.second[i];
             } else {
                 // nonprintable -> escape
-                ss << "\\x" << std::hex << (unsigned) vp.second[i] << std::dec;
+                ss << "\\\\x" << std::hex << (unsigned) vp.second[i] << std::dec;
             }
         }
         ss << "\"}\n";
