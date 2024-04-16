@@ -34,8 +34,8 @@ public:
 S2E_DEFINE_PLUGIN(Chef, "Chef provides support for symbolically executing interpreters. This is a version modified by Petr Stastny. See 'Prototyping symbolic execution engines for interpreted languages' by Bucur et al. for more info.", "", );
 
 void Chef::initialize() {
-    error_tc_stream = s2e()->openOutputFile("err_test_cases.dat");
-    success_tc_stream = s2e()->openOutputFile("successful_test_cases.dat");
+    error_tc_stream = s2e()->openOutputFile("err_test_cases.json");
+    success_tc_stream = s2e()->openOutputFile("successful_test_cases.json");
 
     // Begin JSON array
     *success_tc_stream << "[\n";
