@@ -103,12 +103,7 @@ void Chef::handleOpcodeInvocation(S2EExecutionState *state, uint64_t guestDataPt
             instruction = {
                 command.data.trace.op_code,
                 command.data.trace.pc,
-                command.data.trace.line
             };
-            // Record function and filename, up to 60 characters.
-            // SAFETY: we are copying 60 bytes to 61-bytes-long buffer, which was null-set before.
-            strncpy((char*)instruction.function, (const char*)command.data.trace.function, 60);
-            strncpy((char*)instruction.filename, (const char*)command.data.trace.filename, 60);
             // Record instruction update
             doUpdateHLPC(state, instruction);
         break;
@@ -174,8 +169,7 @@ void Chef::dumpTestCase(S2EExecutionState *state, llvm::raw_ostream &out) {
     // Write the variables themselves
     bool writeComma = streams_with_a_testcase.count(&out) >= 1;
     auto timestamp = (chrono_clock::now() - start_time_stamp) / 1s;
-    writeSimpleTestCase(out, inputs, timestamp, plgState->lastInstructionExecuted->pc, plgState->lastInstructionExecuted->filename,
-                    plgState->lastInstructionExecuted->function, plgState->lastInstructionExecuted->line, state->getID(), writeComma);
+    writeSimpleTestCase(out, inputs, timestamp, plgState->lastInstructionExecuted->pc, state->getID(), writeComma);
 
     streams_with_a_testcase.insert(&out);
 
@@ -183,7 +177,7 @@ void Chef::dumpTestCase(S2EExecutionState *state, llvm::raw_ostream &out) {
 }
 
 /// Output concrete values of variables into given stream
-void Chef::writeSimpleTestCase(llvm::raw_ostream &os, const ConcreteInputs &inputs, long timestamp, uint64_t pc, const unsigned char * filename, const unsigned char * function, uint32_t line, uint32_t stateId, bool prefixComma) {
+void Chef::writeSimpleTestCase(llvm::raw_ostream &os, const ConcreteInputs &inputs, long timestamp, uint64_t pc, uint32_t stateId, bool prefixComma) {
     std::stringstream ss;
 
     if (prefixComma) ss << ",";
@@ -192,9 +186,6 @@ void Chef::writeSimpleTestCase(llvm::raw_ostream &os, const ConcreteInputs &inpu
     // Output metadata
     ss << "\t\"timestamp\" : " << timestamp << ",\n";
     ss << "\t\"pc\" : " << pc << ",\n";
-    ss << "\t\"filename\" : \"" << filename << "\",\n";
-    ss << "\t\"function\" : \"" << function << "\",\n";
-    ss << "\t\"line\" : " << line << ",\n";
     ss << "\t\"stateId\" : " << stateId << ",\n";
 
     // Output input variables

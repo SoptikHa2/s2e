@@ -27,9 +27,6 @@ namespace s2e {
     struct HighLevelInstruction {
         uint32_t opcode;
         uint32_t pc;
-        uint32_t line;
-        unsigned char function[61];
-        unsigned char filename[61];
     };
 }
 

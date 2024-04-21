@@ -31,9 +31,6 @@ struct S2E_CHEF_COMMAND {
         struct {
             uint32_t op_code;
             uint32_t pc;
-            uint32_t line;
-            uint8_t function[61];
-            uint8_t filename[61];
         } trace;
     } data;
 };
@@ -89,7 +86,7 @@ private:
 
     bool isAtState(ChefStatus targetStatus, S2EExecutionState *state, bool warn = true);
 
-    void writeSimpleTestCase(llvm::raw_ostream &os, const ConcreteInputs &inputs, long timestamp, uint64_t pc, const unsigned char * filename, const unsigned char * function, uint32_t line, uint32_t stateId, bool prefixComma);
+    void writeSimpleTestCase(llvm::raw_ostream &os, const ConcreteInputs &inputs, long timestamp, uint64_t pc, uint32_t stateId, bool prefixComma);
 
     void dumpTestCase(S2EExecutionState *state, llvm::raw_ostream &out);
 
