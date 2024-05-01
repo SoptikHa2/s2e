@@ -70,6 +70,7 @@ Chef::~Chef() {
 
 /// Interpreter emited a message for us.
 void Chef::handleOpcodeInvocation(S2EExecutionState *state, uint64_t guestDataPtr, uint64_t guestDataSize) {
+    DECLARE_PLUGINSTATE(ChefState, state);
     S2E_CHEF_COMMAND command;
 
     if (guestDataSize != sizeof(command)) {
@@ -107,6 +108,13 @@ void Chef::handleOpcodeInvocation(S2EExecutionState *state, uint64_t guestDataPt
             // Record instruction update
             doUpdateHLPC(state, instruction);
         break;
+        case ABORT_STATE:
+            // Setting the state to inactive will prevent further updates from being recorded AND
+            // will prevent generating test cases that would otherwise generate on state kill.
+            plgState->currentStatus = Inactive;
+            // Kill the current state
+            s2e()->getExecutor()->terminateState(*state, "Chef ABORT STATE was received. This usually means that chef_assume condition failed.");
+            break;
     default:
         getWarningsStream(state) << "Unknown command " << command.Command << "\n";
         break;
@@ -138,20 +146,18 @@ void Chef::startSession(S2EExecutionState *state) {
 /// Stop receiving instruction updates and if error happened, dump way how to get to current state into a file.
 void Chef::endSession(S2EExecutionState *state, bool error_happened) {
     DECLARE_PLUGINSTATE(ChefState, state);
-    plgState->currentStatus = Inactive;
-
-    getWarningsStream(state) << "Chef state " << state->getID() << " switched to INACTIVE.\n";
-
-    if (error_happened)
-        getInfoStream(state) << "Chef ended with error\n";
-    else
-        getInfoStream(state) << "Chef ended\n";
 
     if (error_happened) {
+        getInfoStream(state) << "Chef ended with error\n";
         dumpTestCase(state, *error_tc_stream);
-    } else {
+    }
+    else {
+        getInfoStream(state) << "Chef ended\n";
         dumpTestCase(state, *success_tc_stream);
     }
+
+    plgState->currentStatus = Inactive;
+    getWarningsStream(state) << "Chef state " << state->getID() << " switched to INACTIVE.\n";
 }
 
 /// Dump info about current state into a file, including time from session start.

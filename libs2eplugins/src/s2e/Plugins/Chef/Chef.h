@@ -15,9 +15,10 @@ namespace plugins {
 
 
 enum S2E_CHEF_COMMANDS {
-    START_CHEF,
-    END_CHEF,
-    TRACE_UPDATE
+    START_CHEF,  // start chef session
+    END_CHEF, // end chef session
+    TRACE_UPDATE, // new high-level instruction was executed
+    ABORT_STATE // this state should not be considered -> kill state without generating a testcase
 };
 
 struct S2E_CHEF_COMMAND {
