@@ -361,7 +361,6 @@ private:
 
     void onInterpreterTrace(S2EExecutionState *state,
                             s2e::HighLevelInstruction instruction) {
-        s2e->getDebugStream(state) << "CHEF CUPA: On interpreter trace! hlpc: " << instruction.pc << "\n";
         pcs[state->getID()] = instruction.pc;
     }
 public:
@@ -385,10 +384,7 @@ protected:
             return 0;
 
         auto hlpc = pcs[state->getID()];
-
         uint64_t cls = hlpc;
-
-        s2e->getInfoStream(state) << "Chef CUPA (pc) returned class " << cls << '\n';
 
         return cls;
     }
@@ -408,7 +404,6 @@ private:
 
     void onInterpreterTrace(S2EExecutionState *state,
                             s2e::HighLevelInstruction instruction) {
-        s2e->getDebugStream(state) << "CHEF CUPA: On interpreter trace! hlop: " << instruction.opcode << "\n";
         ops[state->getID()] = instruction.opcode;
     }
 public:
@@ -429,10 +424,7 @@ protected:
             return 0;
 
         auto opcode = ops[state->getID()];
-
         uint64_t cls = opcode;
-
-        s2e->getInfoStream(state) << "Chef CUPA (op) returned class " << cls << '\n';
 
         return cls;
     }
