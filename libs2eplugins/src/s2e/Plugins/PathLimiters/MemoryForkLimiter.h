@@ -1,5 +1,5 @@
 ///
-/// Copyright (C) 2023, Petr Stastny
+/// Copyright (C) 2024, Petr Stastny
 ///
 /// Permission is hereby granted, free of charge, to any person obtaining a copy
 /// of this software and associated documentation files (the "Software"), to deal
@@ -20,51 +20,54 @@
 /// SOFTWARE.
 ///
 
-#ifndef S2E_PLUGINS_EXAMPLECOMMS_H
-#define S2E_PLUGINS_EXAMPLECOMMS_H
+#ifndef S2E_PLUGINS_MEMORYFORKLIMITER_H
+#define S2E_PLUGINS_MEMORYFORKLIMITER_H
+
+#include <optional>
 
 #include <s2e/Plugin.h>
 
 #include <s2e/Plugins/Core/BaseInstructions.h>
+#include <s2e/Plugins/OSMonitors/Support/ModuleExecutionDetector.h>
 
 
 namespace s2e {
 namespace plugins {
 
-
-enum S2E_EXAMPLECOMMS_COMMANDS {
-    // TODO: customize list of commands here
-    COMMAND_1
-};
-
-struct S2E_EXAMPLECOMMS_COMMAND {
-    S2E_EXAMPLECOMMS_COMMANDS Command;
-    union {
-        // Command parameters go here
-        uint64_t param;
-    };
-};
-
-
-
-class ExampleComms : public Plugin, public IPluginInvoker {
-
+class MemoryForkLimiter : public Plugin {
     S2E_PLUGIN
+
+    /// When memory use of S2E is over given amount of bytes, no new states nor processes are allowed to be created.
+    std::optional<int64_t> maxMemoryUseBytes;
+
+    /// When global memory use exceeds this amount (thousands, so 1000 = 100%, 850 = 85%, etc), no new states nor processes are allowed to be created.
+    std::optional<int64_t> maxGlobalMemoryUseThousands;
+
+    int64_t currentMemoryUseBytes = 0;
+    int64_t currentGlobalMemoryUseBytes = 0;
+    int64_t memorySizeBytes = 0;
+
+    bool warnedAboutMemUsage = false;
+    bool warnedAboutGlobalMemUsage = false;
+
 public:
-    ExampleComms(S2E *s2e) : Plugin(s2e) {
+    MemoryForkLimiter(S2E *s2e) : Plugin(s2e) {
     }
 
     void initialize();
 
 private:
+    void onTimer();
+    void onStateForkDecide(S2EExecutionState *state, const klee::ref<klee::Expr> &condition, bool &allowForking);
+    void onProcessForkDecide(bool *proceed);
 
+    bool canCreateNewStates();
 
-    // Allow the guest to communicate with this plugin using s2e_invoke_plugin
-    virtual void handleOpcodeInvocation(S2EExecutionState *state, uint64_t guestDataPtr, uint64_t guestDataSize);
-
+    int64_t getTotalSystemMemory();
+    int64_t getSelfMemoryUsage();
+    int64_t getGlobalMemoryUsage();
 };
-
 } // namespace plugins
 } // namespace s2e
 
-#endif // S2E_PLUGINS_EXAMPLECOMMS_H
+#endif // S2E_PLUGINS_MEMORYFORKLIMITER_H

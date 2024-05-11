@@ -110,21 +110,18 @@ add_library(
     s2e/Plugins/PathLimiters/EdgeKiller.cpp
     s2e/Plugins/PathLimiters/ResourceMonitor.cpp
     s2e/Plugins/PathLimiters/ForkLimiter.cpp
+    s2e/Plugins/PathLimiters/MemoryForkLimiter.cpp
 
     # Code coverage
     s2e/Plugins/Coverage/BasicBlockCoverage.cpp
     s2e/Plugins/Coverage/TranslationBlockCoverage.cpp
     s2e/Plugins/Coverage/EdgeCoverage.cpp
 
-    # Misc plugins
-    s2e/Plugins/Example.cpp
-
     # Analysis plugins
     s2e/Plugins/Analyzers/CacheSim.cpp
     s2e/Plugins/Analyzers/AddressTracker.cpp
     s2e/Plugins/Analyzers/CFIChecker.cpp
     s2e/Plugins/Analyzers/Tickler.cpp
-
 
     # Execution monitors
     s2e/Plugins/ExecutionMonitors/CallSiteMonitor.cpp
@@ -153,7 +150,6 @@ add_library(
     s2e/Plugins/Chef/Chef.cpp
 
     # Debug
-    s2e/Plugins/ExampleComms.cpp
 
     ${PROTO_SRCS} ${PROTO_HDRS}
 )
